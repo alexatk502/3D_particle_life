@@ -19,10 +19,11 @@ export class Simulation {
     pressure_scale(): number;
     randomize_matrix(seed: bigint): void;
     /**
-     * Reset rest density so it auto-calibrates again on the next step.
+     * Clear all per-kind rest densities so they auto-calibrate again on the next step.
      */
     recalibrate_rest(): void;
-    rest_density(): number;
+    rest_density(kind: number): number;
+    rest_density_ptr(): number;
     set_conserve_momentum(enabled: boolean): void;
     set_dt(v: number): void;
     set_force_scale(v: number): void;
@@ -32,7 +33,7 @@ export class Simulation {
     set_matrix_entry(i: number, j: number, v: number): void;
     set_pressure_scale(v: number): void;
     set_r_max(v: number): void;
-    set_rest_density(v: number): void;
+    set_rest_density(kind: number, v: number): void;
     set_viscosity(v: number): void;
     set_wall_damping(v: number): void;
     set_walls(enabled: boolean): void;
@@ -63,7 +64,8 @@ export interface InitOutput {
     readonly simulation_pressure_scale: (a: number) => number;
     readonly simulation_randomize_matrix: (a: number, b: bigint) => void;
     readonly simulation_recalibrate_rest: (a: number) => void;
-    readonly simulation_rest_density: (a: number) => number;
+    readonly simulation_rest_density: (a: number, b: number) => number;
+    readonly simulation_rest_density_ptr: (a: number) => number;
     readonly simulation_set_conserve_momentum: (a: number, b: number) => void;
     readonly simulation_set_dt: (a: number, b: number) => void;
     readonly simulation_set_force_scale: (a: number, b: number) => void;
@@ -73,7 +75,7 @@ export interface InitOutput {
     readonly simulation_set_matrix_entry: (a: number, b: number, c: number, d: number) => void;
     readonly simulation_set_pressure_scale: (a: number, b: number) => void;
     readonly simulation_set_r_max: (a: number, b: number) => void;
-    readonly simulation_set_rest_density: (a: number, b: number) => void;
+    readonly simulation_set_rest_density: (a: number, b: number, c: number) => void;
     readonly simulation_set_viscosity: (a: number, b: number) => void;
     readonly simulation_set_wall_damping: (a: number, b: number) => void;
     readonly simulation_set_walls: (a: number, b: number) => void;

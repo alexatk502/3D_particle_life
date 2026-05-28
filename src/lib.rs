@@ -47,7 +47,7 @@ pub struct Simulation {
     sorted_density: Vec<f32>,     // n, scratch
     sorted_p_term: Vec<f32>,      // n, scratch — Pi / ρi² precomputed per step
     sorted_vel: Vec<f32>,         // n * d, scratch — velocities gathered in sorted order
-    rest_density: f32,            // ρ₀ for Tait pressure; auto-calibrated to initial mean on first step
+    rest_density: [f32; NUM_TYPES], // per-kind ρ₀ — makes each kind its own fluid; auto-calibrated
     pressure_scale: f32,          // Tait stiffness k; 0 disables SPH pressure
     viscosity: f32,               // μ; 0 disables SPH viscosity
     gravity: [f32; 3],            // external acceleration applied to every particle
@@ -98,7 +98,7 @@ impl Simulation {
             sorted_density: Vec::new(),
             sorted_p_term: Vec::new(),
             sorted_vel: Vec::new(),
-            rest_density: 0.0,
+            rest_density: [0.0; NUM_TYPES],
             pressure_scale: 0.0,
             viscosity: 0.0,
             gravity: [0.0; 3],
@@ -267,20 +267,29 @@ impl Simulation {
             self.sorted_density[k] = (density_acc + h6) * poly6_const * mass;
         }
 
-        // Auto-calibrate rest density on the first step where it hasn't been set yet.
-        if self.rest_density <= 0.0 {
-            let mut s = 0.0_f64;
-            for v in &self.sorted_density { s += *v as f64; }
-            self.rest_density = (s / n as f64) as f32;
+        // Per-kind auto-calibration: any rest density still zero gets the mean of its kind.
+        if self.rest_density.iter().any(|&v| v <= 0.0) {
+            let mut sums = [0.0_f64; NUM_TYPES];
+            let mut counts = [0_u32; NUM_TYPES];
+            for k in 0..n {
+                let ki = self.sorted_kind[k] as usize;
+                sums[ki]   += self.sorted_density[k] as f64;
+                counts[ki] += 1;
+            }
+            for i in 0..NUM_TYPES {
+                if counts[i] > 0 && self.rest_density[i] <= 0.0 {
+                    self.rest_density[i] = (sums[i] / counts[i] as f64) as f32;
+                }
+            }
         }
-        let rest_density = self.rest_density;
         let pressure_scale = self.pressure_scale;
         let viscosity = self.viscosity;
 
-        // Precompute Pi / ρi² so the inner pair loop just does (term_i + term_j).
+        // Precompute Pi / ρi² per particle using its kind's ρ₀.
         for k in 0..n {
             let rho = self.sorted_density[k];
-            let p = pressure_scale * (rho - rest_density);
+            let ki = self.sorted_kind[k] as usize;
+            let p = pressure_scale * (rho - self.rest_density[ki]);
             self.sorted_p_term[k] = if rho > 1e-12 { p / (rho * rho) } else { 0.0 };
         }
 
@@ -472,10 +481,17 @@ impl Simulation {
     }
     pub fn set_pressure_scale(&mut self, v: f32) { self.pressure_scale = v.max(0.0); }
     pub fn pressure_scale(&self) -> f32 { self.pressure_scale }
-    pub fn set_rest_density(&mut self, v: f32) { self.rest_density = v.max(0.0); }
-    pub fn rest_density(&self) -> f32 { self.rest_density }
-    /// Reset rest density so it auto-calibrates again on the next step.
-    pub fn recalibrate_rest(&mut self) { self.rest_density = 0.0; }
+    pub fn set_rest_density(&mut self, kind: usize, v: f32) {
+        if kind < NUM_TYPES { self.rest_density[kind] = v.max(0.0); }
+    }
+    pub fn rest_density(&self, kind: usize) -> f32 {
+        if kind < NUM_TYPES { self.rest_density[kind] } else { 0.0 }
+    }
+    pub fn rest_density_ptr(&self) -> *const f32 { self.rest_density.as_ptr() }
+    /// Clear all per-kind rest densities so they auto-calibrate again on the next step.
+    pub fn recalibrate_rest(&mut self) {
+        for v in self.rest_density.iter_mut() { *v = 0.0; }
+    }
     pub fn set_viscosity(&mut self, v: f32) { self.viscosity = v.max(0.0); }
     pub fn viscosity(&self) -> f32 { self.viscosity }
     pub fn set_gravity(&mut self, gx: f32, gy: f32, gz: f32) { self.gravity = [gx, gy, gz]; }

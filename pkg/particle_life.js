@@ -114,17 +114,25 @@ export class Simulation {
         wasm.simulation_randomize_matrix(this.__wbg_ptr, seed);
     }
     /**
-     * Reset rest density so it auto-calibrates again on the next step.
+     * Clear all per-kind rest densities so they auto-calibrate again on the next step.
      */
     recalibrate_rest() {
         wasm.simulation_recalibrate_rest(this.__wbg_ptr);
     }
     /**
+     * @param {number} kind
      * @returns {number}
      */
-    rest_density() {
-        const ret = wasm.simulation_rest_density(this.__wbg_ptr);
+    rest_density(kind) {
+        const ret = wasm.simulation_rest_density(this.__wbg_ptr, kind);
         return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    rest_density_ptr() {
+        const ret = wasm.simulation_rest_density_ptr(this.__wbg_ptr);
+        return ret >>> 0;
     }
     /**
      * @param {boolean} enabled
@@ -185,10 +193,11 @@ export class Simulation {
         wasm.simulation_set_r_max(this.__wbg_ptr, v);
     }
     /**
+     * @param {number} kind
      * @param {number} v
      */
-    set_rest_density(v) {
-        wasm.simulation_set_rest_density(this.__wbg_ptr, v);
+    set_rest_density(kind, v) {
+        wasm.simulation_set_rest_density(this.__wbg_ptr, kind, v);
     }
     /**
      * @param {number} v
