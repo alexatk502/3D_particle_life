@@ -1,0 +1,24 @@
+/* tslint:disable */
+/* eslint-disable */
+export const memory: WebAssembly.Memory;
+export const __wbg_simulation_free: (a: number, b: number) => void;
+export const simulation_box_size: (a: number) => number;
+export const simulation_cells_per_axis: (a: number) => number;
+export const simulation_dims: (a: number) => number;
+export const simulation_kinds_ptr: (a: number) => number;
+export const simulation_matrix_ptr: (a: number) => number;
+export const simulation_n: (a: number) => number;
+export const simulation_new: (a: number, b: number, c: number, d: bigint) => number;
+export const simulation_num_types: (a: number) => number;
+export const simulation_positions_ptr: (a: number) => number;
+export const simulation_randomize_matrix: (a: number, b: bigint) => void;
+export const simulation_set_dt: (a: number, b: number) => void;
+export const simulation_set_force_scale: (a: number, b: number) => void;
+export const simulation_set_friction: (a: number, b: number) => void;
+export const simulation_set_matrix_entry: (a: number, b: number, c: number, d: number) => void;
+export const simulation_set_r_max: (a: number, b: number) => void;
+export const simulation_step: (a: number) => void;
+export const simulation_total_momentum: (a: number) => number;
+export const simulation_velocities_ptr: (a: number) => number;
+export const __wbindgen_externrefs: WebAssembly.Table;
+export const __wbindgen_start: () => void;

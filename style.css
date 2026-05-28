@@ -1,0 +1,20 @@
+html, body { margin: 0; height: 100%; background: #0a0a0f; color: #ddd; font-family: ui-sans-serif, system-ui, sans-serif; overflow: hidden; }
+#canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+#panel {
+  position: fixed; top: 12px; right: 12px; width: 260px;
+  background: rgba(18, 18, 26, 0.85); backdrop-filter: blur(6px);
+  border: 1px solid #2a2a3a; border-radius: 10px; padding: 14px 16px;
+  font-size: 13px; line-height: 1.4;
+}
+h1 { font-size: 15px; margin: 0 0 10px; letter-spacing: 0.5px; }
+h2 { font-size: 13px; margin: 14px 0 6px; color: #bbb; }
+.row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+.row label { width: 70px; color: #aaa; }
+.row input[type=range] { flex: 1; }
+.row input[type=number] { width: 80px; background: #1a1a26; color: #ddd; border: 1px solid #333; border-radius: 4px; padding: 3px 6px; }
+.row span { width: 36px; text-align: right; color: #999; font-variant-numeric: tabular-nums; }
+.stats { margin-top: 8px; font-variant-numeric: tabular-nums; color: #888; }
+.hint { color: #777; font-size: 11px; margin: 0 0 6px; }
+button { background: #2a2a40; color: #ddd; border: 1px solid #3a3a55; border-radius: 4px; padding: 5px 10px; cursor: pointer; }
+button:hover { background: #353555; }
+#matrix { display: block; image-rendering: pixelated; border: 1px solid #2a2a3a; }

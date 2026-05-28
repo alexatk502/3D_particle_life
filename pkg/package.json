@@ -1,0 +1,15 @@
+{
+  "name": "particle_life",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "particle_life_bg.wasm",
+    "particle_life.js",
+    "particle_life.d.ts"
+  ],
+  "main": "particle_life.js",
+  "types": "particle_life.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

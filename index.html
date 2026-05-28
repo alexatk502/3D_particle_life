@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>3D Particle Life (Rust + WASM)</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+
+  <div id="panel">
+    <h1>Particle Life</h1>
+    <div class="row"><label>Particles</label><input id="count" type="number" value="800" min="10" max="5000" /></div>
+    <div class="row"><label>Friction</label><input id="friction" type="range" min="0" max="1" step="0.01" value="0.85" /><span id="frictionVal">0.85</span></div>
+    <div class="row"><label>Force</label><input id="force" type="range" min="0" max="200" step="1" value="80" /><span id="forceVal">80</span></div>
+    <div class="row"><label>r_max</label><input id="rmax" type="range" min="10" max="120" step="1" value="60" /><span id="rmaxVal">60</span></div>
+    <div class="row"><label>dt</label><input id="dt" type="range" min="0.005" max="0.05" step="0.001" value="0.02" /><span id="dtVal">0.02</span></div>
+    <div class="row">
+      <button id="reset">Reset</button>
+      <button id="rerollMatrix">Reroll matrix</button>
+    </div>
+    <div class="stats">
+      <div>|Σv| = <span id="momentum">0</span></div>
+      <div>fps: <span id="fps">0</span></div>
+      <div>phys: <span id="physMs">0</span> ms</div>
+      <div>render: <span id="renderMs">0</span> ms</div>
+    </div>
+    <h2>Camera</h2>
+    <p class="hint">WASD or arrows: rotate. Mouse wheel: zoom.</p>
+
+    <h2>Interaction matrix</h2>
+    <p class="hint">rows = source kind, cols = target kind. drag to edit.</p>
+    <canvas id="matrix" width="220" height="220"></canvas>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
