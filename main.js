@@ -353,6 +353,37 @@ async function main() {
   $("walls").addEventListener("change", e => sim.set_walls(e.target.checked));
   $("conserveMomentum").addEventListener("change", e => sim.set_conserve_momentum(e.target.checked));
 
+  // Mode presets — each pushes sensible defaults into the existing controls so
+  // both physics paths use the same sliders/state.
+  const PRESETS = {
+    PL:  { force: 80, pressure: 0,     viscosity: 0,   gravity: 0,   walls: false, conserve: true  },
+    SPH: { force: 0,  pressure: 30000, viscosity: 300, gravity: 200, walls: true,  conserve: false },
+  };
+  function setSlider(id, value) {
+    const el = $(id);
+    el.value = value;
+    el.dispatchEvent(new Event("input"));
+  }
+  function setCheckbox(id, value) {
+    const el = $(id);
+    el.checked = value;
+    el.dispatchEvent(new Event("change"));
+  }
+  function applyMode(name) {
+    const p = PRESETS[name];
+    setSlider("force",     p.force);
+    setSlider("pressure",  p.pressure);
+    setSlider("viscosity", p.viscosity);
+    setSlider("gravity",   p.gravity);
+    setCheckbox("walls", p.walls);
+    setCheckbox("conserveMomentum", p.conserve);
+    if (name === "SPH") sim.recalibrate_rest();
+    for (const id of ["modePL", "modeSPH"]) $(id).classList.remove("active");
+    $(name === "PL" ? "modePL" : "modeSPH").classList.add("active");
+  }
+  $("modePL").addEventListener("click",  () => applyMode("PL"));
+  $("modeSPH").addEventListener("click", () => applyMode("SPH"));
+
   $("reset").addEventListener("click", () => rebuild(parseInt($("count").value), Date.now()));
   $("rerollMatrix").addEventListener("click", () => {
     sim.randomize_matrix(BigInt(Date.now()));
