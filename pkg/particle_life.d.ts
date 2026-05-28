@@ -30,9 +30,11 @@ export class Simulation {
     set_pressure_scale(v: number): void;
     set_r_max(v: number): void;
     set_rest_density(v: number): void;
+    set_viscosity(v: number): void;
     step(): void;
     total_momentum(): number;
     velocities_ptr(): number;
+    viscosity(): number;
 }
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
@@ -63,9 +65,11 @@ export interface InitOutput {
     readonly simulation_set_pressure_scale: (a: number, b: number) => void;
     readonly simulation_set_r_max: (a: number, b: number) => void;
     readonly simulation_set_rest_density: (a: number, b: number) => void;
+    readonly simulation_set_viscosity: (a: number, b: number) => void;
     readonly simulation_step: (a: number) => void;
     readonly simulation_total_momentum: (a: number) => number;
     readonly simulation_velocities_ptr: (a: number) => number;
+    readonly simulation_viscosity: (a: number) => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_start: () => void;
 }

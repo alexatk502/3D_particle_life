@@ -169,6 +169,12 @@ export class Simulation {
     set_rest_density(v) {
         wasm.simulation_set_rest_density(this.__wbg_ptr, v);
     }
+    /**
+     * @param {number} v
+     */
+    set_viscosity(v) {
+        wasm.simulation_set_viscosity(this.__wbg_ptr, v);
+    }
     step() {
         wasm.simulation_step(this.__wbg_ptr);
     }
@@ -185,6 +191,13 @@ export class Simulation {
     velocities_ptr() {
         const ret = wasm.simulation_velocities_ptr(this.__wbg_ptr);
         return ret >>> 0;
+    }
+    /**
+     * @returns {number}
+     */
+    viscosity() {
+        const ret = wasm.simulation_viscosity(this.__wbg_ptr);
+        return ret;
     }
 }
 if (Symbol.dispose) Simulation.prototype[Symbol.dispose] = Simulation.prototype.free;

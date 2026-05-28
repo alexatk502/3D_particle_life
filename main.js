@@ -346,7 +346,8 @@ async function main() {
   bindRange("force",    "forceVal",    v => sim.set_force_scale(v));
   bindRange("rmax",     "rmaxVal",     v => sim.set_r_max(v));
   bindRange("dt",       "dtVal",       v => sim.set_dt(v));
-  bindRange("pressure", "pressureVal", v => sim.set_pressure_scale(v));
+  bindRange("pressure",  "pressureVal",  v => sim.set_pressure_scale(v));
+  bindRange("viscosity", "viscosityVal", v => sim.set_viscosity(v));
   $("recalibRest").addEventListener("click", () => sim.recalibrate_rest());
 
   $("reset").addEventListener("click", () => rebuild(parseInt($("count").value), Date.now()));

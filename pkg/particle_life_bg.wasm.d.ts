@@ -25,8 +25,10 @@ export const simulation_set_matrix_entry: (a: number, b: number, c: number, d: n
 export const simulation_set_pressure_scale: (a: number, b: number) => void;
 export const simulation_set_r_max: (a: number, b: number) => void;
 export const simulation_set_rest_density: (a: number, b: number) => void;
+export const simulation_set_viscosity: (a: number, b: number) => void;
 export const simulation_step: (a: number) => void;
 export const simulation_total_momentum: (a: number) => number;
 export const simulation_velocities_ptr: (a: number) => number;
+export const simulation_viscosity: (a: number) => number;
 export const __wbindgen_externrefs: WebAssembly.Table;
 export const __wbindgen_start: () => void;

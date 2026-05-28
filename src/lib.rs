@@ -46,8 +46,10 @@ pub struct Simulation {
     density: Vec<f32>,            // n, original order — exposed to JS
     sorted_density: Vec<f32>,     // n, scratch
     sorted_p_term: Vec<f32>,      // n, scratch — Pi / ρi² precomputed per step
+    sorted_vel: Vec<f32>,         // n * d, scratch — velocities gathered in sorted order
     rest_density: f32,            // ρ₀ for Tait pressure; auto-calibrated to initial mean on first step
     pressure_scale: f32,          // Tait stiffness k; 0 disables SPH pressure
+    viscosity: f32,               // μ; 0 disables SPH viscosity
 }
 
 #[wasm_bindgen]
@@ -91,8 +93,10 @@ impl Simulation {
             density: Vec::new(),
             sorted_density: Vec::new(),
             sorted_p_term: Vec::new(),
+            sorted_vel: Vec::new(),
             rest_density: 0.0,
             pressure_scale: 0.0,
+            viscosity: 0.0,
         }
     }
 
@@ -132,6 +136,7 @@ impl Simulation {
             self.density.resize(n, 0.0);
             self.sorted_density.resize(n, 0.0);
             self.sorted_p_term.resize(n, 0.0);
+            self.sorted_vel.resize(n * d, 0.0);
         }
         for c in self.cell_count.iter_mut() { *c = 0; }
 
@@ -169,7 +174,10 @@ impl Simulation {
         // 4) gather sorted scratch for cache-friendly inner loop
         for k in 0..n {
             let i = self.sorted_idx[k] as usize;
-            for dim in 0..d { self.sorted_pos[k * d + dim] = self.pos[i * d + dim]; }
+            for dim in 0..d {
+                self.sorted_pos[k * d + dim] = self.pos[i * d + dim];
+                self.sorted_vel[k * d + dim] = self.vel[i * d + dim];
+            }
             self.sorted_kind[k] = self.kind[i];
         }
         for a in self.sorted_acc.iter_mut() { *a = 0.0; }
@@ -253,6 +261,7 @@ impl Simulation {
         }
         let rest_density = self.rest_density;
         let pressure_scale = self.pressure_scale;
+        let viscosity = self.viscosity;
 
         // Precompute Pi / ρi² so the inner pair loop just does (term_i + term_j).
         for k in 0..n {
@@ -274,6 +283,9 @@ impl Simulation {
             let pz = if d == 3 { self.sorted_pos[k * d + 2] } else { 0.0 };
             let row = ki * NUM_TYPES;
             let pt_i = self.sorted_p_term[k];
+            let vx_i = self.sorted_vel[k * d];
+            let vy_i = self.sorted_vel[k * d + 1];
+            let vz_i = if d == 3 { self.sorted_vel[k * d + 2] } else { 0.0 };
 
             let mut ax = 0.0_f32;
             let mut ay = 0.0_f32;
@@ -328,17 +340,31 @@ impl Simulation {
                             ay += coef * ddy;
                             if d == 3 { az += coef * ddz; }
 
+                            // h - r appears in both pressure (squared) and viscosity (linear).
+                            let h_minus_r = r_max - r;
+
                             // SPH pressure (off when pressure_scale == 0). Symmetric form:
                             //   a_i += -m_j (Pi/ρi² + Pj/ρj²) ∇_i W_spiky
-                            // ∇_i W_spiky points opposite ddx, so this naturally pushes apart
-                            // when both pressures are positive. Newton-3rd-law symmetric.
+                            // Newton-3rd-law symmetric.
                             if pressure_scale != 0.0 {
-                                let h_minus_r = r_max - r;
                                 let pterm = pt_i + self.sorted_p_term[s];
                                 let coef_p = -mass * pterm * spiky_grad_const * h_minus_r * h_minus_r * inv_r;
                                 ax += coef_p * ddx;
                                 ay += coef_p * ddy;
                                 if d == 3 { az += coef_p * ddz; }
+                            }
+
+                            // SPH viscosity (Müller). a_i += μ m_j (v_j - v_i)/ρ_j ∇²W_visc
+                            // We approximate the Laplacian kernel by re-using spiky_grad_const
+                            // (= 45/(π h^6) in 3D, exact for ∇²W_visc), times (h - r).
+                            if viscosity != 0.0 {
+                                let rho_j = self.sorted_density[s];
+                                if rho_j > 1e-12 {
+                                    let visc_coef = viscosity * mass / rho_j * spiky_grad_const * h_minus_r;
+                                    ax += visc_coef * (self.sorted_vel[s * d]     - vx_i);
+                                    ay += visc_coef * (self.sorted_vel[s * d + 1] - vy_i);
+                                    if d == 3 { az += visc_coef * (self.sorted_vel[s * d + 2] - vz_i); }
+                                }
                             }
                         }
                     }
@@ -408,6 +434,8 @@ impl Simulation {
     pub fn rest_density(&self) -> f32 { self.rest_density }
     /// Reset rest density so it auto-calibrates again on the next step.
     pub fn recalibrate_rest(&mut self) { self.rest_density = 0.0; }
+    pub fn set_viscosity(&mut self, v: f32) { self.viscosity = v.max(0.0); }
+    pub fn viscosity(&self) -> f32 { self.viscosity }
 
     pub fn total_momentum(&self) -> f32 {
         let d = self.dims;
