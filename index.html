@@ -15,6 +15,11 @@
     <div class="row"><label>Force</label><input id="force" type="range" min="0" max="200" step="1" value="80" /><span id="forceVal">80</span></div>
     <div class="row"><label>r_max</label><input id="rmax" type="range" min="10" max="120" step="1" value="60" /><span id="rmaxVal">60</span></div>
     <div class="row"><label>dt</label><input id="dt" type="range" min="0.005" max="0.05" step="0.001" value="0.02" /><span id="dtVal">0.02</span></div>
+    <h2>SPH</h2>
+    <div class="row"><label>pressure</label><input id="pressure" type="range" min="0" max="200000" step="500" value="0" /><span id="pressureVal">0</span></div>
+    <div class="row">
+      <button id="recalibRest">Recalibrate ρ₀</button>
+    </div>
     <div class="row">
       <button id="reset">Reset</button>
       <button id="rerollMatrix">Reroll matrix</button>

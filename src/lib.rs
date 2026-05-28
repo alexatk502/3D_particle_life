@@ -41,10 +41,13 @@ pub struct Simulation {
     sorted_kind: Vec<u8>,    // n
     sorted_acc: Vec<f32>,    // n * d
 
-    // --- SPH (mini 1): density via Poly6 kernel, h = r_max for now ---
+    // --- SPH ---
     mass: f32,
-    density: Vec<f32>,           // n, original order — exposed to JS
-    sorted_density: Vec<f32>,    // n, scratch in sorted order
+    density: Vec<f32>,            // n, original order — exposed to JS
+    sorted_density: Vec<f32>,     // n, scratch
+    sorted_p_term: Vec<f32>,      // n, scratch — Pi / ρi² precomputed per step
+    rest_density: f32,            // ρ₀ for Tait pressure; auto-calibrated to initial mean on first step
+    pressure_scale: f32,          // Tait stiffness k; 0 disables SPH pressure
 }
 
 #[wasm_bindgen]
@@ -87,6 +90,9 @@ impl Simulation {
             mass: 1.0,
             density: Vec::new(),
             sorted_density: Vec::new(),
+            sorted_p_term: Vec::new(),
+            rest_density: 0.0,
+            pressure_scale: 0.0,
         }
     }
 
@@ -125,6 +131,7 @@ impl Simulation {
             self.sorted_acc.resize(n * d, 0.0);
             self.density.resize(n, 0.0);
             self.sorted_density.resize(n, 0.0);
+            self.sorted_p_term.resize(n, 0.0);
         }
         for c in self.cell_count.iter_mut() { *c = 0; }
 
@@ -167,42 +174,38 @@ impl Simulation {
         }
         for a in self.sorted_acc.iter_mut() { *a = 0.0; }
 
-        // 5) force loop — sorted order, only own cell + immediate neighbors
+        // Cell-neighbor iteration shared between density pass and force pass.
         let cpa_i = cpa as i32;
         let dz_lo = if d == 3 { -1i32 } else { 0 };
         let dz_hi = if d == 3 {  1i32 } else { 0 };
 
-        // SPH (Poly6) constants. We use h = r_max so the kernel cutoff matches the
-        // cell-list cutoff; no extra neighbor work.
+        // SPH kernel constants. h = r_max so kernel cutoff matches the cell-list cutoff.
         let h2 = r_max2;
         let h6 = h2 * h2 * h2;
         let pi = core::f32::consts::PI;
         let poly6_const: f32 = if d == 3 {
-            // 315 / (64 π h^9)
-            315.0 / (64.0 * pi * h6 * r_max * r_max * r_max)
+            315.0 / (64.0 * pi * h6 * r_max * r_max * r_max)        // 315 / (64 π h^9)
         } else {
-            // 4 / (π h^8)
-            4.0 / (pi * h6 * h2)
+            4.0 / (pi * h6 * h2)                                   // 4 / (π h^8)
+        };
+        // ∇W_spiky magnitude coefficient = 3 K_spiky = 45/(π h^6) in 3D, 30/(π h^5) in 2D.
+        let spiky_grad_const: f32 = if d == 3 {
+            45.0 / (pi * h6)
+        } else {
+            30.0 / (pi * h2 * h2 * r_max)                          // 30 / (π h^5)
         };
         let mass = self.mass;
 
+        // === Pass A: density (Poly6) ===
         for k in 0..n {
-            // unpack cell coords from packed id (recompute is cheaper than storing 3 u32 per particle)
             let mut c = self.cell_of[self.sorted_idx[k] as usize];
             let mz = if d == 3 { let v = (c % cpa_u) as i32; c /= cpa_u; v } else { 0 };
             let my = { let v = (c % cpa_u) as i32; c /= cpa_u; v };
             let mx = (c % cpa_u) as i32;
-
-            let ki = self.sorted_kind[k] as usize;
             let px = self.sorted_pos[k * d];
             let py = self.sorted_pos[k * d + 1];
             let pz = if d == 3 { self.sorted_pos[k * d + 2] } else { 0.0 };
-            let row = ki * NUM_TYPES;
-
-            let mut ax = 0.0_f32;
-            let mut ay = 0.0_f32;
-            let mut az = 0.0_f32;
-            let mut density_acc = 0.0_f32; // Σ (h² - r²)³ over pairs within h
+            let mut density_acc = 0.0_f32;
 
             for dz in dz_lo..=dz_hi {
                 let ncz = rem_pos(mz + dz, cpa_i) as u32;
@@ -215,10 +218,80 @@ impl Simulation {
                         } else {
                             ncx * cpa_u + ncy
                         } as usize;
-
                         let start = self.cell_start[cell_idx] as usize;
                         let end   = self.cell_start[cell_idx + 1] as usize;
+                        for s in start..end {
+                            if s == k { continue; }
+                            let qx = self.sorted_pos[s * d];
+                            let qy = self.sorted_pos[s * d + 1];
+                            let mut ddx = qx - px;
+                            let mut ddy = qy - py;
+                            if ddx >  half { ddx -= bs; } else if ddx < -half { ddx += bs; }
+                            if ddy >  half { ddy -= bs; } else if ddy < -half { ddy += bs; }
+                            let mut r2 = ddx * ddx + ddy * ddy;
+                            if d == 3 {
+                                let qz = self.sorted_pos[s * d + 2];
+                                let mut ddz = qz - pz;
+                                if ddz >  half { ddz -= bs; } else if ddz < -half { ddz += bs; }
+                                r2 += ddz * ddz;
+                            }
+                            if r2 >= r_max2 { continue; }
+                            let h2_minus_r2 = r_max2 - r2;
+                            density_acc += h2_minus_r2 * h2_minus_r2 * h2_minus_r2;
+                        }
+                    }
+                }
+            }
+            self.sorted_density[k] = (density_acc + h6) * poly6_const * mass;
+        }
 
+        // Auto-calibrate rest density on the first step where it hasn't been set yet.
+        if self.rest_density <= 0.0 {
+            let mut s = 0.0_f64;
+            for v in &self.sorted_density { s += *v as f64; }
+            self.rest_density = (s / n as f64) as f32;
+        }
+        let rest_density = self.rest_density;
+        let pressure_scale = self.pressure_scale;
+
+        // Precompute Pi / ρi² so the inner pair loop just does (term_i + term_j).
+        for k in 0..n {
+            let rho = self.sorted_density[k];
+            let p = pressure_scale * (rho - rest_density);
+            self.sorted_p_term[k] = if rho > 1e-12 { p / (rho * rho) } else { 0.0 };
+        }
+
+        // === Pass B: forces (particle-life + SPH pressure) ===
+        for k in 0..n {
+            let mut c = self.cell_of[self.sorted_idx[k] as usize];
+            let mz = if d == 3 { let v = (c % cpa_u) as i32; c /= cpa_u; v } else { 0 };
+            let my = { let v = (c % cpa_u) as i32; c /= cpa_u; v };
+            let mx = (c % cpa_u) as i32;
+
+            let ki = self.sorted_kind[k] as usize;
+            let px = self.sorted_pos[k * d];
+            let py = self.sorted_pos[k * d + 1];
+            let pz = if d == 3 { self.sorted_pos[k * d + 2] } else { 0.0 };
+            let row = ki * NUM_TYPES;
+            let pt_i = self.sorted_p_term[k];
+
+            let mut ax = 0.0_f32;
+            let mut ay = 0.0_f32;
+            let mut az = 0.0_f32;
+
+            for dz in dz_lo..=dz_hi {
+                let ncz = rem_pos(mz + dz, cpa_i) as u32;
+                for dy in -1..=1 {
+                    let ncy = rem_pos(my + dy, cpa_i) as u32;
+                    for dx in -1..=1 {
+                        let ncx = rem_pos(mx + dx, cpa_i) as u32;
+                        let cell_idx = if d == 3 {
+                            ((ncx * cpa_u) + ncy) * cpa_u + ncz
+                        } else {
+                            ncx * cpa_u + ncy
+                        } as usize;
+                        let start = self.cell_start[cell_idx] as usize;
+                        let end   = self.cell_start[cell_idx + 1] as usize;
                         for s in start..end {
                             if s == k { continue; }
                             let qx = self.sorted_pos[s * d];
@@ -237,14 +310,11 @@ impl Simulation {
                             }
                             if r2 >= r_max2 || r2 == 0.0 { continue; }
 
-                            // SPH density kernel (Poly6): pair contribution (h² - r²)³.
-                            let h2_minus_r2 = r_max2 - r2;
-                            density_acc += h2_minus_r2 * h2_minus_r2 * h2_minus_r2;
-
                             let r = r2.sqrt();
                             let inv_r = 1.0 / r;
                             let rn = r / r_max;
 
+                            // Particle-life force.
                             let f_mag = if rn < beta {
                                 -repulsion_scale * (1.0 - rn / beta)
                             } else {
@@ -253,11 +323,23 @@ impl Simulation {
                                 let f = 1.0 - ((2.0 * rn - 1.0 - beta) / (1.0 - beta)).abs();
                                 force_scale * a * f
                             };
-
                             let coef = f_mag * inv_r;
                             ax += coef * ddx;
                             ay += coef * ddy;
                             if d == 3 { az += coef * ddz; }
+
+                            // SPH pressure (off when pressure_scale == 0). Symmetric form:
+                            //   a_i += -m_j (Pi/ρi² + Pj/ρj²) ∇_i W_spiky
+                            // ∇_i W_spiky points opposite ddx, so this naturally pushes apart
+                            // when both pressures are positive. Newton-3rd-law symmetric.
+                            if pressure_scale != 0.0 {
+                                let h_minus_r = r_max - r;
+                                let pterm = pt_i + self.sorted_p_term[s];
+                                let coef_p = -mass * pterm * spiky_grad_const * h_minus_r * h_minus_r * inv_r;
+                                ax += coef_p * ddx;
+                                ay += coef_p * ddy;
+                                if d == 3 { az += coef_p * ddz; }
+                            }
                         }
                     }
                 }
@@ -265,8 +347,6 @@ impl Simulation {
             self.sorted_acc[k * d]     = ax;
             self.sorted_acc[k * d + 1] = ay;
             if d == 3 { self.sorted_acc[k * d + 2] = az; }
-            // Density: pair sum + self contribution W(0,h) = h^6, then normalize.
-            self.sorted_density[k] = (density_acc + h6) * poly6_const * mass;
         }
 
         // 6) integrate velocities (unsort via sorted_idx); also unsort density.
@@ -313,7 +393,7 @@ impl Simulation {
     pub fn set_r_max(&mut self, v: f32) { self.r_max = v.max(1.0); }
     pub fn set_dt(&mut self, v: f32) { self.dt = v.max(0.0); }
 
-    // SPH (mini 1) accessors
+    // SPH accessors
     pub fn density_ptr(&self) -> *const f32 { self.density.as_ptr() }
     pub fn set_mass(&mut self, v: f32) { self.mass = v.max(0.0); }
     pub fn mean_density(&self) -> f32 {
@@ -322,6 +402,12 @@ impl Simulation {
         for v in &self.density { s += *v as f64; }
         (s / self.n as f64) as f32
     }
+    pub fn set_pressure_scale(&mut self, v: f32) { self.pressure_scale = v.max(0.0); }
+    pub fn pressure_scale(&self) -> f32 { self.pressure_scale }
+    pub fn set_rest_density(&mut self, v: f32) { self.rest_density = v.max(0.0); }
+    pub fn rest_density(&self) -> f32 { self.rest_density }
+    /// Reset rest density so it auto-calibrates again on the next step.
+    pub fn recalibrate_rest(&mut self) { self.rest_density = 0.0; }
 
     pub fn total_momentum(&self) -> f32 {
         let d = self.dims;

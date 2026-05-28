@@ -94,10 +94,30 @@ export class Simulation {
         return ret >>> 0;
     }
     /**
+     * @returns {number}
+     */
+    pressure_scale() {
+        const ret = wasm.simulation_pressure_scale(this.__wbg_ptr);
+        return ret;
+    }
+    /**
      * @param {bigint} seed
      */
     randomize_matrix(seed) {
         wasm.simulation_randomize_matrix(this.__wbg_ptr, seed);
+    }
+    /**
+     * Reset rest density so it auto-calibrates again on the next step.
+     */
+    recalibrate_rest() {
+        wasm.simulation_recalibrate_rest(this.__wbg_ptr);
+    }
+    /**
+     * @returns {number}
+     */
+    rest_density() {
+        const ret = wasm.simulation_rest_density(this.__wbg_ptr);
+        return ret;
     }
     /**
      * @param {number} v
@@ -134,8 +154,20 @@ export class Simulation {
     /**
      * @param {number} v
      */
+    set_pressure_scale(v) {
+        wasm.simulation_set_pressure_scale(this.__wbg_ptr, v);
+    }
+    /**
+     * @param {number} v
+     */
     set_r_max(v) {
         wasm.simulation_set_r_max(this.__wbg_ptr, v);
+    }
+    /**
+     * @param {number} v
+     */
+    set_rest_density(v) {
+        wasm.simulation_set_rest_density(this.__wbg_ptr, v);
     }
     step() {
         wasm.simulation_step(this.__wbg_ptr);

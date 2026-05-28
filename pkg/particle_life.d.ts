@@ -15,13 +15,21 @@ export class Simulation {
     constructor(dims: number, n: number, box_size: number, seed: bigint);
     num_types(): number;
     positions_ptr(): number;
+    pressure_scale(): number;
     randomize_matrix(seed: bigint): void;
+    /**
+     * Reset rest density so it auto-calibrates again on the next step.
+     */
+    recalibrate_rest(): void;
+    rest_density(): number;
     set_dt(v: number): void;
     set_force_scale(v: number): void;
     set_friction(v: number): void;
     set_mass(v: number): void;
     set_matrix_entry(i: number, j: number, v: number): void;
+    set_pressure_scale(v: number): void;
     set_r_max(v: number): void;
+    set_rest_density(v: number): void;
     step(): void;
     total_momentum(): number;
     velocities_ptr(): number;
@@ -43,13 +51,18 @@ export interface InitOutput {
     readonly simulation_new: (a: number, b: number, c: number, d: bigint) => number;
     readonly simulation_num_types: (a: number) => number;
     readonly simulation_positions_ptr: (a: number) => number;
+    readonly simulation_pressure_scale: (a: number) => number;
     readonly simulation_randomize_matrix: (a: number, b: bigint) => void;
+    readonly simulation_recalibrate_rest: (a: number) => void;
+    readonly simulation_rest_density: (a: number) => number;
     readonly simulation_set_dt: (a: number, b: number) => void;
     readonly simulation_set_force_scale: (a: number, b: number) => void;
     readonly simulation_set_friction: (a: number, b: number) => void;
     readonly simulation_set_mass: (a: number, b: number) => void;
     readonly simulation_set_matrix_entry: (a: number, b: number, c: number, d: number) => void;
+    readonly simulation_set_pressure_scale: (a: number, b: number) => void;
     readonly simulation_set_r_max: (a: number, b: number) => void;
+    readonly simulation_set_rest_density: (a: number, b: number) => void;
     readonly simulation_step: (a: number) => void;
     readonly simulation_total_momentum: (a: number) => number;
     readonly simulation_velocities_ptr: (a: number) => number;
