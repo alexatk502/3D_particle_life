@@ -6,9 +6,11 @@ export class Simulation {
     [Symbol.dispose](): void;
     box_size(): number;
     cells_per_axis(): number;
+    density_ptr(): number;
     dims(): number;
     kinds_ptr(): number;
     matrix_ptr(): number;
+    mean_density(): number;
     n(): number;
     constructor(dims: number, n: number, box_size: number, seed: bigint);
     num_types(): number;
@@ -17,6 +19,7 @@ export class Simulation {
     set_dt(v: number): void;
     set_force_scale(v: number): void;
     set_friction(v: number): void;
+    set_mass(v: number): void;
     set_matrix_entry(i: number, j: number, v: number): void;
     set_r_max(v: number): void;
     step(): void;
@@ -31,9 +34,11 @@ export interface InitOutput {
     readonly __wbg_simulation_free: (a: number, b: number) => void;
     readonly simulation_box_size: (a: number) => number;
     readonly simulation_cells_per_axis: (a: number) => number;
+    readonly simulation_density_ptr: (a: number) => number;
     readonly simulation_dims: (a: number) => number;
     readonly simulation_kinds_ptr: (a: number) => number;
     readonly simulation_matrix_ptr: (a: number) => number;
+    readonly simulation_mean_density: (a: number) => number;
     readonly simulation_n: (a: number) => number;
     readonly simulation_new: (a: number, b: number, c: number, d: bigint) => number;
     readonly simulation_num_types: (a: number) => number;
@@ -42,6 +47,7 @@ export interface InitOutput {
     readonly simulation_set_dt: (a: number, b: number) => void;
     readonly simulation_set_force_scale: (a: number, b: number) => void;
     readonly simulation_set_friction: (a: number, b: number) => void;
+    readonly simulation_set_mass: (a: number, b: number) => void;
     readonly simulation_set_matrix_entry: (a: number, b: number, c: number, d: number) => void;
     readonly simulation_set_r_max: (a: number, b: number) => void;
     readonly simulation_step: (a: number) => void;

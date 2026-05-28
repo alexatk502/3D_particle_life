@@ -234,8 +234,12 @@ function render() {
   const d = sim.dims();
   const pPtr = sim.positions_ptr() / 4;
   const kPtr = sim.kinds_ptr();
+  const dPtr = sim.density_ptr() / 4;
   const pos = f32().subarray(pPtr, pPtr + n * d);
   const kind = u8().subarray(kPtr, kPtr + n);
+  const density = f32().subarray(dPtr, dPtr + n);
+  // Mean for normalization. Cached on sim side as well, but JS recompute is trivial.
+  const meanDensity = sim.mean_density() || 1.0;
 
   const r0 = Math.max(1.0, PARTICLE_R * viewScale * zoom * 0.5);
   const TWO_PI = Math.PI * 2;
@@ -247,10 +251,13 @@ function render() {
   }
 
   if (d === 3) {
+    const invMeanD = 1.0 / meanDensity;
     for (let i = 0; i < n; i++) {
       const k = kind[i];
       const p = project(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]);
-      const r = r0 * p[2];
+      // density factor: cube-root of (ρ/ρ̄) keeps the visual change gentle.
+      const dF = Math.max(0.6, Math.min(1.9, Math.cbrt(density[i] * invMeanD)));
+      const r = r0 * p[2] * dF;
       const px = p[0], py = p[1];
       if (r < LOD_RECT) {
         const sz = Math.max(1, r * 1.6);
@@ -323,6 +330,7 @@ function loop(t) {
     $("physMs").textContent   = (physAccum / frames).toFixed(2);
     $("renderMs").textContent = (renderAccum / frames).toFixed(2);
     $("momentum").textContent = sim.total_momentum().toExponential(2);
+    $("meanDensity").textContent = sim.mean_density().toExponential(2);
     frames = 0; physAccum = 0; renderAccum = 0; lastFpsT = t;
   }
   requestAnimationFrame(loop);

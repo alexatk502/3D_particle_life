@@ -40,6 +40,11 @@ pub struct Simulation {
     sorted_pos: Vec<f32>,    // n * d
     sorted_kind: Vec<u8>,    // n
     sorted_acc: Vec<f32>,    // n * d
+
+    // --- SPH (mini 1): density via Poly6 kernel, h = r_max for now ---
+    mass: f32,
+    density: Vec<f32>,           // n, original order — exposed to JS
+    sorted_density: Vec<f32>,    // n, scratch in sorted order
 }
 
 #[wasm_bindgen]
@@ -79,6 +84,9 @@ impl Simulation {
             sorted_pos: Vec::new(),
             sorted_kind: Vec::new(),
             sorted_acc: Vec::new(),
+            mass: 1.0,
+            density: Vec::new(),
+            sorted_density: Vec::new(),
         }
     }
 
@@ -115,6 +123,8 @@ impl Simulation {
             self.sorted_pos.resize(n * d, 0.0);
             self.sorted_kind.resize(n, 0);
             self.sorted_acc.resize(n * d, 0.0);
+            self.density.resize(n, 0.0);
+            self.sorted_density.resize(n, 0.0);
         }
         for c in self.cell_count.iter_mut() { *c = 0; }
 
@@ -162,6 +172,20 @@ impl Simulation {
         let dz_lo = if d == 3 { -1i32 } else { 0 };
         let dz_hi = if d == 3 {  1i32 } else { 0 };
 
+        // SPH (Poly6) constants. We use h = r_max so the kernel cutoff matches the
+        // cell-list cutoff; no extra neighbor work.
+        let h2 = r_max2;
+        let h6 = h2 * h2 * h2;
+        let pi = core::f32::consts::PI;
+        let poly6_const: f32 = if d == 3 {
+            // 315 / (64 π h^9)
+            315.0 / (64.0 * pi * h6 * r_max * r_max * r_max)
+        } else {
+            // 4 / (π h^8)
+            4.0 / (pi * h6 * h2)
+        };
+        let mass = self.mass;
+
         for k in 0..n {
             // unpack cell coords from packed id (recompute is cheaper than storing 3 u32 per particle)
             let mut c = self.cell_of[self.sorted_idx[k] as usize];
@@ -178,6 +202,7 @@ impl Simulation {
             let mut ax = 0.0_f32;
             let mut ay = 0.0_f32;
             let mut az = 0.0_f32;
+            let mut density_acc = 0.0_f32; // Σ (h² - r²)³ over pairs within h
 
             for dz in dz_lo..=dz_hi {
                 let ncz = rem_pos(mz + dz, cpa_i) as u32;
@@ -212,6 +237,10 @@ impl Simulation {
                             }
                             if r2 >= r_max2 || r2 == 0.0 { continue; }
 
+                            // SPH density kernel (Poly6): pair contribution (h² - r²)³.
+                            let h2_minus_r2 = r_max2 - r2;
+                            density_acc += h2_minus_r2 * h2_minus_r2 * h2_minus_r2;
+
                             let r = r2.sqrt();
                             let inv_r = 1.0 / r;
                             let rn = r / r_max;
@@ -236,9 +265,11 @@ impl Simulation {
             self.sorted_acc[k * d]     = ax;
             self.sorted_acc[k * d + 1] = ay;
             if d == 3 { self.sorted_acc[k * d + 2] = az; }
+            // Density: pair sum + self contribution W(0,h) = h^6, then normalize.
+            self.sorted_density[k] = (density_acc + h6) * poly6_const * mass;
         }
 
-        // 6) integrate velocities (unsort via sorted_idx)
+        // 6) integrate velocities (unsort via sorted_idx); also unsort density.
         let dt = self.dt;
         let fric = self.friction;
         for k in 0..n {
@@ -246,6 +277,7 @@ impl Simulation {
             for dim in 0..d {
                 self.vel[i * d + dim] = self.vel[i * d + dim] * fric + self.sorted_acc[k * d + dim] * dt;
             }
+            self.density[i] = self.sorted_density[k];
         }
         zero_momentum(&mut self.vel, d, n);
 
@@ -280,6 +312,16 @@ impl Simulation {
     pub fn set_force_scale(&mut self, v: f32) { self.force_scale = v; }
     pub fn set_r_max(&mut self, v: f32) { self.r_max = v.max(1.0); }
     pub fn set_dt(&mut self, v: f32) { self.dt = v.max(0.0); }
+
+    // SPH (mini 1) accessors
+    pub fn density_ptr(&self) -> *const f32 { self.density.as_ptr() }
+    pub fn set_mass(&mut self, v: f32) { self.mass = v.max(0.0); }
+    pub fn mean_density(&self) -> f32 {
+        if self.n == 0 { return 0.0; }
+        let mut s = 0.0_f64;
+        for v in &self.density { s += *v as f64; }
+        (s / self.n as f64) as f32
+    }
 
     pub fn total_momentum(&self) -> f32 {
         let d = self.dims;

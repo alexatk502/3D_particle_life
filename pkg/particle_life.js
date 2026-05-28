@@ -28,6 +28,13 @@ export class Simulation {
     /**
      * @returns {number}
      */
+    density_ptr() {
+        const ret = wasm.simulation_density_ptr(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {number}
+     */
     dims() {
         const ret = wasm.simulation_dims(this.__wbg_ptr);
         return ret >>> 0;
@@ -45,6 +52,13 @@ export class Simulation {
     matrix_ptr() {
         const ret = wasm.simulation_matrix_ptr(this.__wbg_ptr);
         return ret >>> 0;
+    }
+    /**
+     * @returns {number}
+     */
+    mean_density() {
+        const ret = wasm.simulation_mean_density(this.__wbg_ptr);
+        return ret;
     }
     /**
      * @returns {number}
@@ -102,6 +116,12 @@ export class Simulation {
      */
     set_friction(v) {
         wasm.simulation_set_friction(this.__wbg_ptr, v);
+    }
+    /**
+     * @param {number} v
+     */
+    set_mass(v) {
+        wasm.simulation_set_mass(this.__wbg_ptr, v);
     }
     /**
      * @param {number} i
