@@ -12,6 +12,8 @@ h2 { font-size: 13px; margin: 14px 0 6px; color: #bbb; }
 .row label { width: 70px; color: #aaa; }
 .row input[type=range] { flex: 1; }
 .row input[type=number] { width: 80px; background: #1a1a26; color: #ddd; border: 1px solid #333; border-radius: 4px; padding: 3px 6px; }
+.row input[type=checkbox] { margin-right: 4px; }
+.row label { display: inline-flex; align-items: center; gap: 2px; }
 .row span { width: 36px; text-align: right; color: #999; font-variant-numeric: tabular-nums; }
 .stats { margin-top: 8px; font-variant-numeric: tabular-nums; color: #888; }
 .hint { color: #777; font-size: 11px; margin: 0 0 6px; }

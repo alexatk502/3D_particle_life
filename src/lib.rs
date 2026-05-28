@@ -50,6 +50,10 @@ pub struct Simulation {
     rest_density: f32,            // ρ₀ for Tait pressure; auto-calibrated to initial mean on first step
     pressure_scale: f32,          // Tait stiffness k; 0 disables SPH pressure
     viscosity: f32,               // μ; 0 disables SPH viscosity
+    gravity: [f32; 3],            // external acceleration applied to every particle
+    walls: bool,                  // false: periodic torus; true: elastic walls
+    wall_damping: f32,            // velocity multiplier after a wall collision
+    conserve_momentum: bool,      // run zero_momentum each step (drops gravity's drift)
 }
 
 #[wasm_bindgen]
@@ -97,6 +101,10 @@ impl Simulation {
             rest_density: 0.0,
             pressure_scale: 0.0,
             viscosity: 0.0,
+            gravity: [0.0; 3],
+            walls: false,
+            wall_damping: 0.5,
+            conserve_momentum: true,
         }
     }
 
@@ -187,6 +195,8 @@ impl Simulation {
         let dz_lo = if d == 3 { -1i32 } else { 0 };
         let dz_hi = if d == 3 {  1i32 } else { 0 };
 
+        let periodic = !self.walls;
+
         // SPH kernel constants. h = r_max so kernel cutoff matches the cell-list cutoff.
         let h2 = r_max2;
         let h6 = h2 * h2 * h2;
@@ -234,13 +244,17 @@ impl Simulation {
                             let qy = self.sorted_pos[s * d + 1];
                             let mut ddx = qx - px;
                             let mut ddy = qy - py;
-                            if ddx >  half { ddx -= bs; } else if ddx < -half { ddx += bs; }
-                            if ddy >  half { ddy -= bs; } else if ddy < -half { ddy += bs; }
+                            if periodic {
+                                if ddx >  half { ddx -= bs; } else if ddx < -half { ddx += bs; }
+                                if ddy >  half { ddy -= bs; } else if ddy < -half { ddy += bs; }
+                            }
                             let mut r2 = ddx * ddx + ddy * ddy;
                             if d == 3 {
                                 let qz = self.sorted_pos[s * d + 2];
                                 let mut ddz = qz - pz;
-                                if ddz >  half { ddz -= bs; } else if ddz < -half { ddz += bs; }
+                                if periodic {
+                                    if ddz >  half { ddz -= bs; } else if ddz < -half { ddz += bs; }
+                                }
                                 r2 += ddz * ddz;
                             }
                             if r2 >= r_max2 { continue; }
@@ -310,14 +324,18 @@ impl Simulation {
                             let qy = self.sorted_pos[s * d + 1];
                             let mut ddx = qx - px;
                             let mut ddy = qy - py;
-                            if ddx >  half { ddx -= bs; } else if ddx < -half { ddx += bs; }
-                            if ddy >  half { ddy -= bs; } else if ddy < -half { ddy += bs; }
+                            if periodic {
+                                if ddx >  half { ddx -= bs; } else if ddx < -half { ddx += bs; }
+                                if ddy >  half { ddy -= bs; } else if ddy < -half { ddy += bs; }
+                            }
                             let mut r2 = ddx * ddx + ddy * ddy;
                             let mut ddz = 0.0_f32;
                             if d == 3 {
                                 let qz = self.sorted_pos[s * d + 2];
                                 ddz = qz - pz;
-                                if ddz >  half { ddz -= bs; } else if ddz < -half { ddz += bs; }
+                                if periodic {
+                                    if ddz >  half { ddz -= bs; } else if ddz < -half { ddz += bs; }
+                                }
                                 r2 += ddz * ddz;
                             }
                             if r2 >= r_max2 || r2 == 0.0 { continue; }
@@ -378,21 +396,45 @@ impl Simulation {
         // 6) integrate velocities (unsort via sorted_idx); also unsort density.
         let dt = self.dt;
         let fric = self.friction;
+        let g = self.gravity;
         for k in 0..n {
             let i = self.sorted_idx[k] as usize;
             for dim in 0..d {
-                self.vel[i * d + dim] = self.vel[i * d + dim] * fric + self.sorted_acc[k * d + dim] * dt;
+                self.vel[i * d + dim] =
+                    self.vel[i * d + dim] * fric
+                    + (self.sorted_acc[k * d + dim] + g[dim]) * dt;
             }
             self.density[i] = self.sorted_density[k];
         }
-        zero_momentum(&mut self.vel, d, n);
+        if self.conserve_momentum { zero_momentum(&mut self.vel, d, n); }
 
-        // 7) advect + wrap
-        for i in 0..n * d {
-            let mut p = self.pos[i] + self.vel[i] * dt;
-            if p < 0.0 { p += bs; }
-            if p >= bs { p -= bs; }
-            self.pos[i] = p;
+        // 7) advect with either periodic wrap or elastic walls
+        if self.walls {
+            let damp = self.wall_damping;
+            for i in 0..n {
+                for dim in 0..d {
+                    let idx = i * d + dim;
+                    let mut p = self.pos[idx] + self.vel[idx] * dt;
+                    if p < 0.0 {
+                        p = -p;
+                        self.vel[idx] = -self.vel[idx] * damp;
+                    } else if p >= bs {
+                        p = 2.0 * bs - p;
+                        self.vel[idx] = -self.vel[idx] * damp;
+                    }
+                    // Safety clamp in case a very fast particle escaped beyond a single reflect.
+                    if p < 0.0 { p = 0.0; }
+                    if p >= bs { p = bs - 1e-3; }
+                    self.pos[idx] = p;
+                }
+            }
+        } else {
+            for i in 0..n * d {
+                let mut p = self.pos[i] + self.vel[i] * dt;
+                if p < 0.0 { p += bs; }
+                if p >= bs { p -= bs; }
+                self.pos[i] = p;
+            }
         }
     }
 
@@ -436,6 +478,12 @@ impl Simulation {
     pub fn recalibrate_rest(&mut self) { self.rest_density = 0.0; }
     pub fn set_viscosity(&mut self, v: f32) { self.viscosity = v.max(0.0); }
     pub fn viscosity(&self) -> f32 { self.viscosity }
+    pub fn set_gravity(&mut self, gx: f32, gy: f32, gz: f32) { self.gravity = [gx, gy, gz]; }
+    pub fn set_walls(&mut self, enabled: bool) { self.walls = enabled; }
+    pub fn walls(&self) -> bool { self.walls }
+    pub fn set_wall_damping(&mut self, v: f32) { self.wall_damping = v.clamp(0.0, 1.0); }
+    pub fn set_conserve_momentum(&mut self, enabled: bool) { self.conserve_momentum = enabled; }
+    pub fn conserve_momentum(&self) -> bool { self.conserve_momentum }
 
     pub fn total_momentum(&self) -> f32 {
         let d = self.dims;

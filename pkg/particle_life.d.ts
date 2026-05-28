@@ -6,6 +6,7 @@ export class Simulation {
     [Symbol.dispose](): void;
     box_size(): number;
     cells_per_axis(): number;
+    conserve_momentum(): boolean;
     density_ptr(): number;
     dims(): number;
     kinds_ptr(): number;
@@ -22,19 +23,24 @@ export class Simulation {
      */
     recalibrate_rest(): void;
     rest_density(): number;
+    set_conserve_momentum(enabled: boolean): void;
     set_dt(v: number): void;
     set_force_scale(v: number): void;
     set_friction(v: number): void;
+    set_gravity(gx: number, gy: number, gz: number): void;
     set_mass(v: number): void;
     set_matrix_entry(i: number, j: number, v: number): void;
     set_pressure_scale(v: number): void;
     set_r_max(v: number): void;
     set_rest_density(v: number): void;
     set_viscosity(v: number): void;
+    set_wall_damping(v: number): void;
+    set_walls(enabled: boolean): void;
     step(): void;
     total_momentum(): number;
     velocities_ptr(): number;
     viscosity(): number;
+    walls(): boolean;
 }
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
@@ -44,6 +50,7 @@ export interface InitOutput {
     readonly __wbg_simulation_free: (a: number, b: number) => void;
     readonly simulation_box_size: (a: number) => number;
     readonly simulation_cells_per_axis: (a: number) => number;
+    readonly simulation_conserve_momentum: (a: number) => number;
     readonly simulation_density_ptr: (a: number) => number;
     readonly simulation_dims: (a: number) => number;
     readonly simulation_kinds_ptr: (a: number) => number;
@@ -57,19 +64,24 @@ export interface InitOutput {
     readonly simulation_randomize_matrix: (a: number, b: bigint) => void;
     readonly simulation_recalibrate_rest: (a: number) => void;
     readonly simulation_rest_density: (a: number) => number;
+    readonly simulation_set_conserve_momentum: (a: number, b: number) => void;
     readonly simulation_set_dt: (a: number, b: number) => void;
     readonly simulation_set_force_scale: (a: number, b: number) => void;
     readonly simulation_set_friction: (a: number, b: number) => void;
+    readonly simulation_set_gravity: (a: number, b: number, c: number, d: number) => void;
     readonly simulation_set_mass: (a: number, b: number) => void;
     readonly simulation_set_matrix_entry: (a: number, b: number, c: number, d: number) => void;
     readonly simulation_set_pressure_scale: (a: number, b: number) => void;
     readonly simulation_set_r_max: (a: number, b: number) => void;
     readonly simulation_set_rest_density: (a: number, b: number) => void;
     readonly simulation_set_viscosity: (a: number, b: number) => void;
+    readonly simulation_set_wall_damping: (a: number, b: number) => void;
+    readonly simulation_set_walls: (a: number, b: number) => void;
     readonly simulation_step: (a: number) => void;
     readonly simulation_total_momentum: (a: number) => number;
     readonly simulation_velocities_ptr: (a: number) => number;
     readonly simulation_viscosity: (a: number) => number;
+    readonly simulation_walls: (a: number) => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_start: () => void;
 }

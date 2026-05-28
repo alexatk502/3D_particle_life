@@ -348,7 +348,10 @@ async function main() {
   bindRange("dt",       "dtVal",       v => sim.set_dt(v));
   bindRange("pressure",  "pressureVal",  v => sim.set_pressure_scale(v));
   bindRange("viscosity", "viscosityVal", v => sim.set_viscosity(v));
+  bindRange("gravity",   "gravityVal",   v => sim.set_gravity(0, v, 0));
   $("recalibRest").addEventListener("click", () => sim.recalibrate_rest());
+  $("walls").addEventListener("change", e => sim.set_walls(e.target.checked));
+  $("conserveMomentum").addEventListener("change", e => sim.set_conserve_momentum(e.target.checked));
 
   $("reset").addEventListener("click", () => rebuild(parseInt($("count").value), Date.now()));
   $("rerollMatrix").addEventListener("click", () => {

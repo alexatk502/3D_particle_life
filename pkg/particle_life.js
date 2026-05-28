@@ -26,6 +26,13 @@ export class Simulation {
         return ret >>> 0;
     }
     /**
+     * @returns {boolean}
+     */
+    conserve_momentum() {
+        const ret = wasm.simulation_conserve_momentum(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
      * @returns {number}
      */
     density_ptr() {
@@ -120,6 +127,12 @@ export class Simulation {
         return ret;
     }
     /**
+     * @param {boolean} enabled
+     */
+    set_conserve_momentum(enabled) {
+        wasm.simulation_set_conserve_momentum(this.__wbg_ptr, enabled);
+    }
+    /**
      * @param {number} v
      */
     set_dt(v) {
@@ -136,6 +149,14 @@ export class Simulation {
      */
     set_friction(v) {
         wasm.simulation_set_friction(this.__wbg_ptr, v);
+    }
+    /**
+     * @param {number} gx
+     * @param {number} gy
+     * @param {number} gz
+     */
+    set_gravity(gx, gy, gz) {
+        wasm.simulation_set_gravity(this.__wbg_ptr, gx, gy, gz);
     }
     /**
      * @param {number} v
@@ -175,6 +196,18 @@ export class Simulation {
     set_viscosity(v) {
         wasm.simulation_set_viscosity(this.__wbg_ptr, v);
     }
+    /**
+     * @param {number} v
+     */
+    set_wall_damping(v) {
+        wasm.simulation_set_wall_damping(this.__wbg_ptr, v);
+    }
+    /**
+     * @param {boolean} enabled
+     */
+    set_walls(enabled) {
+        wasm.simulation_set_walls(this.__wbg_ptr, enabled);
+    }
     step() {
         wasm.simulation_step(this.__wbg_ptr);
     }
@@ -198,6 +231,13 @@ export class Simulation {
     viscosity() {
         const ret = wasm.simulation_viscosity(this.__wbg_ptr);
         return ret;
+    }
+    /**
+     * @returns {boolean}
+     */
+    walls() {
+        const ret = wasm.simulation_walls(this.__wbg_ptr);
+        return ret !== 0;
     }
 }
 if (Symbol.dispose) Simulation.prototype[Symbol.dispose] = Simulation.prototype.free;
